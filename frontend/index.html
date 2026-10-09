@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="从图片抠图、像素化、方格上色到拼豆色号图的一站式工作台。">
+    <meta name="color-scheme" content="light dark">
+    <title>豆格 Pindou</title>
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script src="/assets/app.js" defer></script>
+  </head>
+  <body>
+    <div id="auth-view" class="auth-shell">
+      <section class="auth-intro" aria-labelledby="auth-title">
+        <a class="brand brand-on-dark" href="/" aria-label="豆格首页">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span>豆格</span>
+          <small>PINDOU</small>
+        </a>
+        <div class="auth-copy">
+          <p class="eyebrow">图片到拼豆图纸</p>
+          <h1 id="auth-title">留下轮廓，<br>交给格子。</h1>
+          <p>框选主体、抠图、像素化，再用你的色号生成可直接照着拼的图纸。</p>
+        </div>
+        <div class="auth-sample" aria-label="像素图案示意">
+          <div class="pixel-orbit" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <p>支持 8-100 格宽高和 221 个内置色号</p>
+        </div>
+      </section>
+
+      <main class="auth-panel">
+        <div class="auth-form-wrap">
+          <div class="auth-tabs" role="tablist" aria-label="账户操作">
+            <button id="login-tab" class="auth-tab is-active" type="button" role="tab" aria-selected="true">登录</button>
+            <button id="register-tab" class="auth-tab" type="button" role="tab" aria-selected="false">注册</button>
+          </div>
+          <div class="auth-heading">
+            <h2 id="auth-form-title">继续你的图纸</h2>
+            <p id="auth-form-subtitle">使用邮箱登录，项目会保存在这个工作台。</p>
+          </div>
+          <form id="auth-form" novalidate>
+            <div id="display-name-field" class="field" hidden>
+              <label for="display-name">昵称</label>
+              <input id="display-name" name="display_name" type="text" maxlength="48" autocomplete="nickname">
+              <small>稍后可以在个人资料中修改。</small>
+            </div>
+            <div class="field">
+              <label for="email">邮箱</label>
+              <input id="email" name="email" type="email" autocomplete="email" required>
+            </div>
+            <div class="field">
+              <label for="password">密码</label>
+              <input id="password" name="password" type="password" minlength="8" maxlength="128" autocomplete="current-password" required>
+              <small id="password-help">登录密码区分大小写。</small>
+            </div>
+            <p id="auth-error" class="form-error" role="alert" hidden></p>
+            <button id="auth-submit" class="button button-primary button-block" type="submit">登录</button>
+          </form>
+          <p class="auth-footnote">本地版本不会将你的图片暴露到公共目录。</p>
+        </div>
+      </main>
+    </div>
+
+    <div id="app-view" class="app" hidden>
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="豆格工作台">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span>豆格</span>
+          <small>PINDOU</small>
+        </a>
+
+        <nav class="workflow" aria-label="制作流程">
+          <button class="workflow-step is-current" data-step="upload" type="button"><span>01</span>上传</button>
+          <button class="workflow-step" data-step="select" type="button"><span>02</span>框选</button>
+          <button class="workflow-step" data-step="extract" type="button"><span>03</span>抠图</button>
+          <button class="workflow-step" data-step="stylize" type="button"><span>04</span>像素化</button>
+          <button class="workflow-step" data-step="coloring" type="button"><span>05</span>上色</button>
+          <button class="workflow-step" data-step="pattern" type="button"><span>06</span>图纸</button>
+        </nav>
+
+        <div class="topbar-actions">
+          <a id="admin-link" class="admin-link" href="/admin" hidden>管理端</a>
+          <button id="theme-toggle" class="icon-button" type="button" aria-label="切换主题" title="切换主题">明暗</button>
+          <button id="profile-button" class="profile-button" type="button" aria-haspopup="dialog">
+            <span id="profile-avatar" class="avatar">豆</span>
+            <span class="profile-copy"><b id="profile-name">创作者</b><small>个人资料</small></span>
+          </button>
+        </div>
+      </header>
+
+      <div class="app-layout">
+        <aside class="project-sidebar" aria-label="项目列表">
+          <div class="sidebar-heading">
+            <div>
+              <h2>我的图纸</h2>
+              <p id="project-count">0 个项目</p>
+            </div>
+            <button id="new-project-button" class="square-button" type="button" aria-label="上传新图片" title="上传新图片">＋</button>
+          </div>
+          <div id="project-list" class="project-list">
+            <div class="sidebar-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>
+          </div>
+          <button id="sidebar-upload" class="sidebar-upload" type="button">上传图片</button>
+        </aside>
+
+        <main class="editor" aria-label="图片编辑器">
+          <div class="editor-toolbar">
+            <div class="tool-group" aria-label="选区工具">
+              <button id="select-tool" class="tool-button is-active" type="button" aria-pressed="true"><kbd>V</kbd>框选</button>
+              <button id="select-all-button" class="tool-button" type="button"><kbd>A</kbd>全图</button>
+              <button id="clear-selection-button" class="tool-button" type="button"><kbd>Esc</kbd>清除</button>
+            </div>
+            <div id="view-tabs" class="view-tabs" role="tablist" aria-label="预览内容" hidden>
+              <button class="view-tab is-active" data-view="source" type="button" role="tab">原图</button>
+              <button class="view-tab" data-view="cutout" type="button" role="tab">抠图</button>
+              <button class="view-tab" data-view="stylized" type="button" role="tab">像素图</button>
+              <button class="view-tab" data-view="coloring" type="button" role="tab">上色</button>
+              <button class="view-tab" data-view="pattern" type="button" role="tab">图纸</button>
+            </div>
+            <div class="zoom-readout"><span id="canvas-size">未载入图片</span></div>
+          </div>
+
+          <section id="canvas-stage" class="canvas-stage" aria-label="图片画布">
+            <div id="empty-workspace" class="empty-workspace">
+              <div class="empty-art" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <h2>从一张图片开始</h2>
+              <p>PNG、JPG 或 WebP，单张不超过 20 MB。</p>
+              <button id="empty-upload" class="button button-primary" type="button">上传图片</button>
+            </div>
+            <div id="canvas-loader" class="canvas-loader" hidden aria-label="正在处理">
+              <span></span><span></span><span></span>
+              <p id="loader-text">正在处理图片</p>
+              <button id="cancel-job-button" class="button button-quiet" type="button" hidden>取消处理</button>
+            </div>
+            <canvas id="selection-canvas" tabindex="0" aria-label="拖动鼠标框选需要保留的物体" hidden></canvas>
+            <canvas id="paint-canvas" tabindex="0" aria-label="方格上色画布" hidden></canvas>
+            <img id="result-image" alt="当前处理结果" hidden>
+          </section>
+
+          <footer class="editor-status">
+            <span id="status-message">等待上传图片</span>
+            <span id="selection-readout">选区：未设置</span>
+          </footer>
+        </main>
+
+        <aside class="inspector" aria-label="处理参数">
+          <div class="inspector-scroll">
+            <section class="inspector-section">
+              <div class="section-heading">
+                <h2>主体选区</h2>
+                <span id="selection-status" class="status-label">待框选</span>
+              </div>
+              <p>在画布拖出矩形。边缘留少量背景，抠图会更准确。</p>
+              <button id="extract-button" class="button button-primary button-block" type="button" disabled>抠出主体</button>
+              <button id="refine-mask-button" class="button button-quiet button-block" type="button" disabled>修正抠图轮廓</button>
+              <div id="mask-refine-controls" class="mask-refine-controls" hidden>
+                <div class="paint-toolbar" role="toolbar" aria-label="抠图修正工具">
+                  <button class="mask-mode-button is-active" data-mask-mode="keep" type="button">保留</button>
+                  <button class="mask-mode-button" data-mask-mode="remove" type="button">擦除</button>
+                </div>
+                <div class="field range-field">
+                  <div class="range-label"><label for="mask-brush-radius">笔刷半径</label><output id="mask-brush-radius-value">32 px</output></div>
+                  <input id="mask-brush-radius" type="range" min="4" max="128" value="32">
+                </div>
+                <div class="paint-actions">
+                  <button id="save-mask-refine-button" class="button button-primary" type="button">应用修正</button>
+                  <button id="cancel-mask-refine-button" class="button button-quiet" type="button">取消</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="inspector-section">
+              <div class="section-heading">
+                <h2>像素角色</h2>
+                <span id="model-status" class="status-label">本地可用</span>
+              </div>
+              <div class="segmented-control" role="radiogroup" aria-label="像素化方式">
+                <label><input type="radio" name="provider" value="local" checked><span>本地处理</span></label>
+                <label id="model-provider-label"><input type="radio" name="provider" value="model" disabled><span>模型精修</span></label>
+              </div>
+              <div id="local-options" class="inline-fields">
+                <div class="field compact-field">
+                  <label for="pixel-resolution">像素精度</label>
+                  <input id="pixel-resolution" type="number" min="24" max="128" value="72">
+                </div>
+                <div class="field compact-field">
+                  <label for="pixel-colors">颜色上限</label>
+                  <input id="pixel-colors" type="number" min="4" max="64" value="20">
+                </div>
+              </div>
+              <div id="model-options" class="field" hidden>
+                <label for="model-prompt">处理要求</label>
+                <textarea id="model-prompt" rows="5" maxlength="1000"></textarea>
+                <small>API 密钥只在服务端环境变量中读取。</small>
+              </div>
+              <button id="stylize-button" class="button button-secondary button-block" type="button" disabled>生成像素图</button>
+            </section>
+
+            <section class="inspector-section coloring-section">
+              <div class="section-heading">
+                <h2>方格上色</h2>
+                <span id="coloring-status" class="status-label">未创建</span>
+              </div>
+              <p>将主体变成可编辑的轮廓方格，再手动画、随机配色或交给 AI。</p>
+              <div class="inline-fields">
+                <div class="field compact-field">
+                  <label for="grid-cols">宽度格数</label>
+                  <input id="grid-cols" type="number" min="8" max="100" value="36">
+                </div>
+                <div class="field compact-field">
+                  <label for="grid-rows">高度格数</label>
+                  <input id="grid-rows" type="number" min="8" max="100" value="35">
+                </div>
+              </div>
+              <button id="create-coloring-button" class="button button-secondary button-block" type="button" disabled>生成轮廓与方格</button>
+
+              <div id="paint-controls" class="paint-controls" hidden>
+                <div class="paint-toolbar" role="toolbar" aria-label="上色工具">
+                  <button class="paint-tool is-active" data-paint-tool="brush" type="button" title="画笔 (B)">画笔</button>
+                  <button class="paint-tool" data-paint-tool="fill" type="button" title="填充 (G)">填充</button>
+                  <button class="paint-tool" data-paint-tool="eraser" type="button" title="橡皮 (E)">橡皮</button>
+                  <button class="paint-tool" data-paint-tool="eyedropper" type="button" title="吸管 (I)">吸管</button>
+                </div>
+
+                <div class="color-choice">
+                  <label for="paint-color">当前颜色</label>
+                  <input id="paint-color" type="color" value="#9768d6">
+                  <output id="paint-color-code">自定义</output>
+                </div>
+                <div id="palette-grid" class="palette-grid" aria-label="拼豆色板"></div>
+
+                <div class="paint-actions">
+                  <button id="undo-paint-button" class="button button-quiet" type="button" disabled>撤销</button>
+                  <button id="redo-paint-button" class="button button-quiet" type="button" disabled>重做</button>
+                  <button id="clear-paint-button" class="button button-quiet" type="button">清空颜色</button>
+                  <button id="random-color-button" class="button button-secondary" type="button">随机配色</button>
+                </div>
+                <button id="save-coloring-button" class="button button-primary button-block" type="button">保存上色</button>
+
+                <details class="ai-color-panel">
+                  <summary>AI 一键配色 <span id="ai-color-badge">需配置 API</span></summary>
+                  <div class="field">
+                    <label for="ai-color-prompt">配色要求</label>
+                    <textarea id="ai-color-prompt" rows="4" maxlength="1000"></textarea>
+                    <small>模型只提供颜色，轮廓和格子由程序锁定。</small>
+                  </div>
+                  <button id="ai-color-button" class="button button-secondary button-block" type="button" disabled>生成 AI 配色</button>
+                </details>
+              </div>
+            </section>
+
+            <section class="inspector-section">
+              <div class="section-heading">
+                <h2>拼豆图纸</h2>
+                <span id="pattern-status" class="status-label">未生成</span>
+              </div>
+              <p>使用上色画布的格数和颜色生成最终色号矩阵。</p>
+              <div class="field range-field">
+                <div class="range-label"><label for="coverage">边缘保留</label><output id="coverage-value">32%</output></div>
+                <input id="coverage" type="range" min="10" max="80" value="32">
+              </div>
+              <div class="field range-field">
+                <div class="range-label"><label for="padding">四周留白</label><output id="padding-value">4%</output></div>
+                <input id="padding" type="range" min="0" max="24" value="4">
+              </div>
+              <label class="check-row"><input id="smooth-cells" type="checkbox"><span>连接细小断点</span></label>
+              <div class="field palette-field">
+                <label for="palette-codes">手头已有色号</label>
+                <textarea id="palette-codes" rows="2" maxlength="1000"></textarea>
+                <small>用空格或逗号分隔，例如 D6 D7 D9 H7。留空使用全部 221 色。</small>
+              </div>
+              <button id="pattern-button" class="button button-primary button-block" type="button" disabled>生成色号图</button>
+            </section>
+
+            <section id="result-section" class="inspector-section result-section" hidden>
+              <div class="section-heading">
+                <h2>成品</h2>
+                <span class="status-label is-ready">可导出</span>
+              </div>
+              <dl class="result-stats">
+                <div><dt>拼豆数量</dt><dd id="bead-count">0</dd></div>
+                <div><dt>使用色号</dt><dd id="color-count">0</dd></div>
+                <div><dt>图纸尺寸</dt><dd id="grid-size">0 × 0</dd></div>
+              </dl>
+              <div class="download-grid">
+                <a id="download-png" class="button button-secondary" href="#" download>PNG</a>
+                <a id="download-json" class="button button-secondary" href="#" download>JSON</a>
+                <a id="download-csv" class="button button-secondary" href="#" download>CSV</a>
+              </div>
+            </section>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+
+    <dialog id="profile-dialog" class="dialog">
+      <form id="profile-form" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <p>账户设置</p>
+            <h2>个人资料</h2>
+          </div>
+          <button class="dialog-close" value="cancel" type="submit" aria-label="关闭">关闭</button>
+        </div>
+        <div class="profile-summary">
+          <span id="dialog-avatar" class="avatar avatar-large">豆</span>
+          <div><b id="dialog-email">email@example.com</b><small>邮箱作为登录账户，暂不支持修改。</small></div>
+        </div>
+        <dl class="account-usage" aria-label="账户使用统计">
+          <div><dt>历史项目</dt><dd id="usage-projects">0</dd></div>
+          <div><dt>已用空间</dt><dd id="usage-storage">0 MB</dd></div>
+          <div><dt>累计拼豆</dt><dd id="usage-beads">0</dd></div>
+        </dl>
+        <div class="field">
+          <label for="profile-display-name">昵称</label>
+          <input id="profile-display-name" type="text" maxlength="48" required>
+        </div>
+        <div class="field">
+          <label for="profile-bio">个人简介</label>
+          <textarea id="profile-bio" rows="4" maxlength="240"></textarea>
+          <small>最多 240 个字符。</small>
+        </div>
+        <section class="support-box" aria-labelledby="security-title">
+          <div class="section-heading">
+            <h3 id="security-title">账户安全</h3>
+            <span>修改密码和导出数据</span>
+          </div>
+          <div class="inline-fields">
+            <div class="field compact-field">
+              <label for="current-password">当前密码</label>
+              <input id="current-password" type="password" minlength="8" maxlength="128" autocomplete="current-password">
+            </div>
+            <div class="field compact-field">
+              <label for="new-password">新密码</label>
+              <input id="new-password" type="password" minlength="8" maxlength="128" autocomplete="new-password">
+            </div>
+          </div>
+          <div class="paint-actions">
+            <button id="change-password-button" class="button button-secondary" type="button">修改密码</button>
+            <button id="export-account-button" class="button button-quiet" type="button">导出账户数据</button>
+          </div>
+        </section>
+        <section class="support-box" aria-labelledby="support-title">
+          <div class="section-heading">
+            <h3 id="support-title">给管理员留言</h3>
+            <span>问题、建议或内容申诉</span>
+          </div>
+          <div class="field">
+            <label for="message-subject">标题</label>
+            <input id="message-subject" type="text" maxlength="100">
+          </div>
+          <div class="field">
+            <label for="message-content">内容</label>
+            <textarea id="message-content" rows="3" maxlength="2000"></textarea>
+          </div>
+          <button id="send-message-button" class="button button-secondary button-block" type="button">发送留言</button>
+          <div id="message-history" class="message-history" aria-live="polite"></div>
+        </section>
+        <p id="profile-error" class="form-error" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button id="logout-button" class="button button-quiet" type="button">退出登录</button>
+          <button id="delete-account-button" class="button button-danger" type="button">注销账户</button>
+          <button class="button button-primary" type="submit" value="save">保存资料</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="delete-dialog" class="dialog dialog-small">
+      <form method="dialog">
+        <div class="dialog-heading">
+          <div><p>删除项目</p><h2 id="delete-project-name">确认删除？</h2></div>
+        </div>
+        <p>源图和已生成文件都会从本机存储中移除，此操作无法撤销。</p>
+        <div class="dialog-actions">
+          <button class="button button-quiet" value="cancel" type="submit">取消</button>
+          <button id="confirm-delete-button" class="button button-danger" value="confirm" type="submit">删除</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  </body>
+</html>

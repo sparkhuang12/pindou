@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="description" content="豆格用户、项目、消息与处理记录管理控制台。">
+    <title>管理控制台 / 豆格</title>
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script src="/assets/admin.js" defer></script>
+  </head>
+  <body class="admin-body">
+    <header class="admin-topbar">
+      <a class="brand" href="/" aria-label="返回豆格工作台">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span>豆格</span>
+        <small>ADMIN</small>
+      </a>
+      <div class="admin-topbar-copy">
+        <b>运营控制台</b>
+        <span>用户、内容与处理记录</span>
+      </div>
+      <div class="admin-topbar-actions">
+        <span id="admin-identity">正在验证权限</span>
+        <a class="button button-secondary" href="/">返回用户端</a>
+      </div>
+    </header>
+
+    <main id="admin-app" class="admin-shell" hidden>
+      <section class="admin-hero">
+        <div>
+          <p class="eyebrow">SYSTEM OVERVIEW</p>
+          <h1>看清每一次使用，<br>也保护每一份内容。</h1>
+        </div>
+        <p>集中查看账户状态、历史图片、处理输入输出、模型调用和用户留言。密码、Cookie、API 密钥与图片 Base64 不会写入审计日志。</p>
+      </section>
+
+      <section id="overview-grid" class="overview-grid" aria-label="系统概览"></section>
+
+      <nav class="admin-tabs" aria-label="管理模块">
+        <button class="admin-tab is-active" data-admin-view="users" type="button">用户</button>
+        <button class="admin-tab" data-admin-view="projects" type="button">历史图片</button>
+        <button class="admin-tab" data-admin-view="activity" type="button">使用记录</button>
+        <button class="admin-tab" data-admin-view="jobs" type="button">处理输入输出</button>
+        <button class="admin-tab" data-admin-view="messages" type="button">用户消息</button>
+      </nav>
+
+      <section id="admin-panel-users" class="admin-panel">
+        <div class="admin-panel-heading">
+          <div><p>ACCOUNTS</p><h2>用户管理</h2></div>
+          <div class="admin-filters">
+            <input id="user-search" type="search" placeholder="搜索邮箱或昵称">
+            <select id="user-status" aria-label="用户状态">
+              <option value="">全部状态</option>
+              <option value="active">正常</option>
+              <option value="disabled">已停用</option>
+            </select>
+            <button id="reload-users" class="button button-secondary" type="button">查询</button>
+          </div>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>用户</th><th>角色</th><th>状态</th><th>项目</th><th>空间</th><th>最近登录</th><th>操作</th></tr></thead>
+            <tbody id="users-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="admin-panel-projects" class="admin-panel" hidden>
+        <div class="admin-panel-heading">
+          <div><p>PROJECT ARCHIVE</p><h2>历史图片</h2></div>
+          <div class="admin-filters">
+            <input id="project-search" type="search" placeholder="搜索项目、邮箱或昵称">
+            <button id="reload-projects" class="button button-secondary" type="button">查询</button>
+          </div>
+        </div>
+        <div id="admin-project-grid" class="admin-project-grid"></div>
+      </section>
+
+      <section id="admin-panel-activity" class="admin-panel" hidden>
+        <div class="admin-panel-heading">
+          <div><p>AUDIT TRAIL</p><h2>使用记录</h2></div>
+          <div class="admin-filters">
+            <input id="activity-search" type="search" placeholder="搜索操作名称">
+            <select id="activity-status" aria-label="执行状态">
+              <option value="">全部结果</option>
+              <option value="success">成功</option>
+              <option value="failed">失败</option>
+            </select>
+            <button id="reload-activity" class="button button-secondary" type="button">查询</button>
+          </div>
+        </div>
+        <div id="activity-list" class="audit-list"></div>
+      </section>
+
+      <section id="admin-panel-jobs" class="admin-panel" hidden>
+        <div class="admin-panel-heading">
+          <div><p>PROCESSING JOBS</p><h2>处理输入输出</h2></div>
+          <button id="reload-jobs" class="button button-secondary" type="button">刷新</button>
+        </div>
+        <div id="jobs-list" class="audit-list"></div>
+      </section>
+
+      <section id="admin-panel-messages" class="admin-panel" hidden>
+        <div class="admin-panel-heading">
+          <div><p>USER INBOX</p><h2>用户消息</h2></div>
+          <div class="admin-filters">
+            <select id="message-status" aria-label="消息状态">
+              <option value="">全部消息</option>
+              <option value="open">待查看</option>
+              <option value="read">处理中</option>
+              <option value="resolved">已解决</option>
+            </select>
+            <button id="reload-messages" class="button button-secondary" type="button">查询</button>
+          </div>
+        </div>
+        <div id="admin-message-list" class="admin-message-list"></div>
+      </section>
+    </main>
+
+    <section id="admin-denied" class="admin-denied" hidden>
+      <p class="eyebrow">ACCESS REQUIRED</p>
+      <h1>这里需要管理员权限</h1>
+      <p id="admin-denied-message">请使用管理员账户登录后再访问。</p>
+      <a class="button button-primary" href="/">返回登录</a>
+    </section>
+
+    <dialog id="user-detail-dialog" class="dialog admin-detail-dialog">
+      <form method="dialog">
+        <div class="dialog-heading">
+          <div><p>USER DETAIL</p><h2 id="user-detail-title">用户详情</h2></div>
+          <button class="dialog-close" value="cancel" type="submit">关闭</button>
+        </div>
+        <div id="user-detail-content"></div>
+      </form>
+    </dialog>
+
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  </body>
+</html>

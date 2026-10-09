@@ -47,6 +47,119 @@ def make_subject_mask(
     return MaskResult(mask=_clean_mask(mask), method="background")
 
 
+def make_subject_mask_from_box(
+    image: Image.Image,
+    box: tuple[int, int, int, int],
+    grabcut_iterations: int = 6,
+    max_processing_side: int = 1400,
+) -> MaskResult:
+    """Extract a foreground object using a user-drawn bounding box.
+
+    ``box`` uses Pillow coordinates: ``(left, top, right, bottom)``. Pixels
+    outside the box are treated as definite background while GrabCut refines
+    the foreground inside it. This mirrors the rectangular selection workflow
+    used by desktop image editors and produces a full-resolution mask.
+    """
+
+    rgb = np.asarray(image.convert("RGB"))
+    height, width = rgb.shape[:2]
+    left, top, right, bottom = [int(value) for value in box]
+    left = max(0, min(left, width - 1))
+    top = max(0, min(top, height - 1))
+    right = max(left + 1, min(right, width))
+    bottom = max(top + 1, min(bottom, height))
+
+    if right - left < 3 or bottom - top < 3:
+        raise ValueError("Selection must be at least 3 pixels wide and high")
+
+    small, scale = _resize_for_processing(rgb, max_processing_side)
+    scaled_left = int(round(left * scale))
+    scaled_top = int(round(top * scale))
+    scaled_right = int(round(right * scale))
+    scaled_bottom = int(round(bottom * scale))
+    small_height, small_width = small.shape[:2]
+
+    scaled_left = max(0, min(scaled_left, small_width - 2))
+    scaled_top = max(0, min(scaled_top, small_height - 2))
+    scaled_right = max(scaled_left + 2, min(scaled_right, small_width))
+    scaled_bottom = max(scaled_top + 2, min(scaled_bottom, small_height))
+    rect = (
+        scaled_left,
+        scaled_top,
+        scaled_right - scaled_left,
+        scaled_bottom - scaled_top,
+    )
+
+    mask = np.zeros((small_height, small_width), dtype=np.uint8)
+    bgd_model = np.zeros((1, 65), np.float64)
+    fgd_model = np.zeros((1, 65), np.float64)
+    bgr = cv2.cvtColor(small, cv2.COLOR_RGB2BGR)
+    try:
+        cv2.grabCut(
+            bgr,
+            mask,
+            rect,
+            bgd_model,
+            fgd_model,
+            grabcut_iterations,
+            cv2.GC_INIT_WITH_RECT,
+        )
+    except cv2.error:
+        fallback = _background_difference_mask(rgb)
+        selection_mask = np.zeros((height, width), dtype=bool)
+        selection_mask[top:bottom, left:right] = True
+        cleaned_fallback = _clean_mask(fallback & selection_mask)
+        if cleaned_fallback.any():
+            return MaskResult(mask=cleaned_fallback, method="selection-background")
+        return MaskResult(mask=selection_mask, method="selection-box")
+    result = np.logical_or(mask == cv2.GC_FGD, mask == cv2.GC_PR_FGD)
+
+    if scale < 1.0:
+        result = cv2.resize(
+            result.astype(np.uint8),
+            (width, height),
+            interpolation=cv2.INTER_NEAREST,
+        ) > 0
+
+    # GrabCut can occasionally keep a disconnected background island. The
+    # existing cleanup keeps the largest coherent subject and fills pinholes.
+    cleaned = _clean_mask(result)
+    if not cleaned.any():
+        # A simple rectangular mask is a predictable fallback for very flat or
+        # low-contrast images where GrabCut cannot infer a foreground model.
+        cleaned = np.zeros((height, width), dtype=bool)
+        cleaned[top:bottom, left:right] = True
+        return MaskResult(mask=cleaned, method="selection-box")
+    return MaskResult(mask=cleaned, method="selection-grabcut")
+
+
+def apply_mask_edits(
+    mask: np.ndarray,
+    keep_points: list[tuple[int, int]],
+    remove_points: list[tuple[int, int]],
+    *,
+    radius: int = 32,
+) -> np.ndarray:
+    """Apply user brush edits to a full-resolution boolean subject mask."""
+    result = np.asarray(mask, dtype=bool)
+    if result.ndim != 2:
+        raise ValueError("mask must be a two-dimensional array")
+    if radius < 2 or radius > 256:
+        raise ValueError("brush radius must be between 2 and 256 pixels")
+    height, width = result.shape
+    editable = result.astype(np.uint8, copy=True)
+    for x, y in keep_points:
+        if 0 <= x < width and 0 <= y < height:
+            cv2.circle(editable, (int(x), int(y)), radius, 1, thickness=-1)
+    for x, y in remove_points:
+        if 0 <= x < width and 0 <= y < height:
+            cv2.circle(editable, (int(x), int(y)), radius, 0, thickness=-1)
+    result = editable.astype(bool)
+    if not result.any():
+        raise ValueError("修正后没有保留任何主体区域")
+    return result
+
+
 def _alpha_mask(image: Image.Image) -> np.ndarray | None:
     if image.mode not in {"RGBA", "LA"} and "transparency" not in image.info:
         return None
@@ -154,4 +267,3 @@ def _largest_component(mask: np.ndarray) -> np.ndarray:
     regions = measure.regionprops(labels)
     largest = max(regions, key=lambda region: region.area)
     return labels == largest.label
-

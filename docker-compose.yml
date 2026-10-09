@@ -1,0 +1,99 @@
+name: pindou
+
+x-runtime-environment: &runtime-environment
+  PINDOU_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-pindou}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-pindou}
+  PINDOU_DATA_DIR: /app/data
+  PINDOU_TASK_MODE: worker
+  PINDOU_WORKER_POLL_SECONDS: ${PINDOU_WORKER_POLL_SECONDS:-0.75}
+  PINDOU_WORKER_STALE_SECONDS: ${PINDOU_WORKER_STALE_SECONDS:-900}
+  PINDOU_MODEL_API_URL: ${PINDOU_MODEL_API_URL:-}
+  PINDOU_MODEL_API_KEY: ${PINDOU_MODEL_API_KEY:-}
+  PINDOU_MODEL_NAME: ${PINDOU_MODEL_NAME:-pixel-art-editor}
+
+x-backend-service: &backend-service
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  depends_on:
+    database:
+      condition: service_healthy
+  volumes:
+    - pindou-data:/app/data
+  networks:
+    - pindou-internal
+
+services:
+  database:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pindou}
+      POSTGRES_USER: ${POSTGRES_USER:-pindou}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env and set POSTGRES_PASSWORD}
+    volumes:
+      - pindou-database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - pindou-internal
+
+  api:
+    <<: *backend-service
+    environment:
+      <<: *runtime-environment
+      PINDOU_SESSION_SECRET: ${PINDOU_SESSION_SECRET:?set a stable PINDOU_SESSION_SECRET in .env}
+      PINDOU_COOKIE_SECURE: ${PINDOU_COOKIE_SECURE:-0}
+      PINDOU_TRUST_PROXY: "1"
+      PINDOU_ADMIN_EMAIL: ${PINDOU_ADMIN_EMAIL:?set PINDOU_ADMIN_EMAIL in .env}
+      PINDOU_ADMIN_PASSWORD: ${PINDOU_ADMIN_PASSWORD:?set PINDOU_ADMIN_PASSWORD in .env}
+      PINDOU_ADMIN_NAME: ${PINDOU_ADMIN_NAME:-系统管理员}
+    command: ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  worker:
+    <<: *backend-service
+    environment: *runtime-environment
+    command: ["python", "-m", "backend.worker"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "from backend.state import store; connection = store.engine.connect(); connection.exec_driver_sql('SELECT 1'); connection.close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${PINDOU_PORT:-8000}:80"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - pindou-internal
+
+volumes:
+  pindou-database:
+  pindou-data:
+
+networks:
+  pindou-internal:
+    driver: bridge

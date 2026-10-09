@@ -11,7 +11,7 @@ from pindou.cli import _parse_grid_size
 from pindou.palette import load_palette
 from pindou.quantize import image_to_pattern
 from pindou.render import render_pattern, render_preview, save_mask, save_pattern_data
-from pindou.segmentation import make_subject_mask
+from pindou.segmentation import apply_mask_edits, make_subject_mask
 
 
 def main() -> int:
@@ -30,6 +30,14 @@ def main() -> int:
 
     palette = load_palette()
     mask_result = make_subject_mask(image)
+    refined_mask = apply_mask_edits(
+        mask_result.mask,
+        keep_points=[(10, 10)],
+        remove_points=[(160, 160)],
+        radius=4,
+    )
+    assert refined_mask[10, 10]
+    assert not refined_mask[160, 160]
     pattern = image_to_pattern(image, mask_result.mask, palette, cols=36, rows=35)
     custom_pattern = image_to_pattern(image, mask_result.mask, palette, cols=24, rows=20)
 
